@@ -2,36 +2,98 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/homepage/section/Header";
 import Footer from "../components/homepage/section/Footer";
-import { CartItem } from "../lib/types";
 import { loadCart, getCartTotal, clearCart } from "../lib/cartUtils";
+import CheckoutSteps from "../components/checkout/CheckoutSteps";
+import ShippingInfoStep from "../components/checkout/ShippingInfoStep";
+import ShippingMethodStep from "../components/checkout/ShippingMethodStep";
+import PaymentMethodStep from "../components/checkout/PaymentMethodStep";
+import OrderSummary from "../components/checkout/OrderSummary";
+import OrderComplete from "../components/checkout/OrderComplete";
 
-interface ShippingInfo {
+// Interfaces
+export interface CartItem {
+  product: {
+    id: string;
+    name: string;
+    price: number;
+    imageUrl: string;
+    category: string;
+    specifications?: {
+      weight?: string;
+    };
+  };
+  quantity: number;
+}
+
+export interface ShippingInfo {
   fullName: string;
   email: string;
   phone: string;
   address: string;
-  city: string;
+  destination: string;
   postalCode: string;
   notes: string;
 }
 
-interface PaymentMethod {
+export interface PaymentMethod {
   id: string;
   name: string;
   icon: string;
 }
 
-const paymentMethods: PaymentMethod[] = [
+export interface Destination {
+  id: string;
+  code: string;
+  name: string;
+  city: string;
+  province: string;
+}
+
+export interface ShippingService {
+  service: string;
+  description: string;
+  price: number;
+  etd: string;
+}
+
+export interface CostData {
+  value: number;
+  etd: string;
+  est?: string;
+}
+
+export interface ShippingCost {
+  service: string;
+  service_name?: string;
+  description?: string;
+  cost: CostData | CostData[];
+  costs?: CostData[];
+}
+
+export interface ShippingResult {
+  code?: string;
+  name?: string;
+  costs: ShippingCost[];
+}
+
+export interface ShippingResponse {
+  success: boolean;
+  data: ShippingResult[] | {
+    results: ShippingResult[];
+  };
+}
+
+export interface DestinationResponse {
+  success: boolean;
+  data: Destination[];
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const paymentMethods: PaymentMethod[] = [
   { id: "bca", name: "BCA", icon: "/bca-icon.png" },
   { id: "mandiri", name: "Mandiri", icon: "/mandiri-icon.png" },
   { id: "bni", name: "BNI", icon: "/bni-icon.png" },
   { id: "bri", name: "BRI", icon: "/bri-icon.png" },
-];
-
-const shippingOptions = [
-  { id: "regular", name: "Regular (2-3 hari)", price: 10000 },
-  { id: "express", name: "Express (1 hari)", price: 20000 },
-  { id: "same-day", name: "Same Day (Hari ini)", price: 35000 },
 ];
 
 const CheckoutPage = () => {
@@ -39,7 +101,7 @@ const CheckoutPage = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeStep, setActiveStep] = useState<number>(1);
-  const [selectedShipping, setSelectedShipping] = useState(shippingOptions[0]);
+  const [selectedShipping, setSelectedShipping] = useState<ShippingService | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string>("");
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
@@ -50,21 +112,24 @@ const CheckoutPage = () => {
     email: "",
     phone: "",
     address: "",
-    city: "",
+    destination: "",
     postalCode: "",
     notes: "",
   });
 
+  // Lincah API states
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [shippingServices, setShippingServices] = useState<ShippingService[]>([]);
+  const [destinationSearch, setDestinationSearch] = useState("");
+  const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
+  const [isSearchingDestination, setIsSearchingDestination] = useState(false);
+  const [isLoadingShipping, setIsLoadingShipping] = useState(false);
+
   useEffect(() => {
-    // Set page title
     document.title = "Checkout | NusaToys";
-    
-    // Load cart items from localStorage
     const items = loadCart();
     setCartItems(items);
     setIsLoading(false);
-
-    // Generate random order number for demo
     const randomOrderNumber = "NT" + Math.floor(100000 + Math.random() * 900000);
     setOrderNumber(randomOrderNumber);
   }, []);
@@ -81,21 +146,147 @@ const CheckoutPage = () => {
     }));
   };
 
-  const handleShippingChange = (option: typeof shippingOptions[0]) => {
-    setSelectedShipping(option);
+  const handleShippingChange = (service: ShippingService) => {
+    setSelectedShipping(service);
   };
 
   const handlePaymentChange = (paymentId: string) => {
     setSelectedPayment(paymentId);
   };
 
+  const getTotalWeight = () => {
+    return cartItems.reduce((total, item) => {
+      let weight = 1;
+      if (item.product.specifications?.weight) {
+        const weightStr = item.product.specifications.weight;
+        const weightMatch = weightStr.match(/(\d+(?:\.\d+)?)/);
+        if (weightMatch) {
+          weight = parseFloat(weightMatch[1]);
+        }
+      }
+      return total + (weight * item.quantity);
+    }, 0);
+  };
+
+  const searchDestinations = async (query: string) => {
+    if (query.length < 3) {
+      setDestinations([]);
+      return;
+    }
+    
+    setIsSearchingDestination(true);
+    try {
+      const response = await fetch(`/api/lincah/destination/search?q=${encodeURIComponent(query)}`);
+      const data: DestinationResponse = await response.json();
+      if (data.success && data.data) {
+        setDestinations(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error searching destinations:', error);
+    } finally {
+      setIsSearchingDestination(false);
+    }
+  };
+
+  const calculateShipping = async () => {
+    if (!selectedDestination) return;
+
+    const totalWeight = getTotalWeight();
+    if (totalWeight <= 0) {
+      console.error('Invalid total weight:', totalWeight);
+      return;
+    }
+
+    interface ShippingPayload {
+      origin_code: string;
+      destination_code: string;
+      weight: number;
+      volume?: number;
+    }
+
+    setIsLoadingShipping(true);
+    try {
+      const payload: ShippingPayload = {
+        origin_code: "32.71.04",
+        destination_code: selectedDestination.code,
+        weight: Math.max(totalWeight, 0.1)
+      };
+
+      console.log('Calculating shipping with payload:', payload);
+
+      const response = await fetch('/api/lincah/shipping/cost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const data: ShippingResponse = await response.json();
+      console.log('Shipping response:', data);
+      
+      if (data.success && data.data) {
+        const services: ShippingService[] = [];
+        const results = Array.isArray(data.data) ? data.data : (data.data as { results: ShippingResult[] }).results;
+        
+        if (Array.isArray(results)) {
+          results.forEach((result: ShippingResult) => {
+            if (result.costs && Array.isArray(result.costs)) {
+              result.costs.forEach((cost: ShippingCost) => {
+                let costData: CostData | undefined;
+                
+                if (Array.isArray(cost.cost)) {
+                  costData = cost.cost[0];
+                } else if (cost.cost && typeof cost.cost === 'object') {
+                  costData = cost.cost;
+                } else if (cost.costs && Array.isArray(cost.costs)) {
+                  costData = cost.costs[0];
+                }
+                
+                if (costData && costData.value) {
+                  services.push({
+                    service: result.name || result.code || 'Unknown',
+                    description: cost.service || cost.service_name || 'Standard',
+                    price: costData.value,
+                    etd: costData.etd || costData.est || '3-5'
+                  });
+                }
+              });
+            }
+          });
+        }
+        
+        setShippingServices(services);
+        console.log('Loaded shipping services:', services);
+      } else {
+        console.error('Invalid shipping response:', data);
+        setShippingServices([]);
+      }
+    } catch (error) {
+      console.error('Error calculating shipping:', error);
+      setShippingServices([]);
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  };
+
+  const handleDestinationSelect = (destination: Destination) => {
+    setSelectedDestination(destination);
+    const fullAddress = `${destination.name}, ${destination.city}, ${destination.province}`;
+    setShippingInfo(prev => ({ ...prev, destination: fullAddress }));
+    setDestinations([]);
+    setDestinationSearch(fullAddress);
+    setShippingServices([]);
+  };
+
   const handleNextStep = () => {
+    if (activeStep === 1 && selectedDestination) {
+      calculateShipping();
+    }
+    
     if (activeStep < 3) {
       setActiveStep(activeStep + 1);
     } else {
-      // Process order
       setOrderComplete(true);
-      clearCart(); // Clear the cart after successful order
+      clearCart();
     }
   };
 
@@ -111,7 +302,7 @@ const CheckoutPage = () => {
       shippingInfo.email.trim() !== "" &&
       shippingInfo.phone.trim() !== "" &&
       shippingInfo.address.trim() !== "" &&
-      shippingInfo.city.trim() !== "" &&
+      shippingInfo.destination.trim() !== "" &&
       shippingInfo.postalCode.trim() !== ""
     );
   };
@@ -133,64 +324,12 @@ const CheckoutPage = () => {
       <div className="bg-white min-h-screen">
         <Header isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
         <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center py-16">
-            <div className="mb-6 flex justify-center">
-              <div className="rounded-full bg-green-100 p-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-12 w-12 text-green-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Pesanan Berhasil!</h1>
-            <p className="text-lg text-gray-600 mb-8">
-              Terima kasih telah berbelanja di NusaToys. Pesanan Anda telah kami terima dan sedang diproses.
-            </p>
-            <div className="bg-gray-50 rounded-lg p-6 mb-8 text-left">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Detail Pesanan</h2>
-              <div className="flex justify-between mb-2">
-                <span className="text-gray-600">Nomor Pesanan:</span>
-                <span className="font-medium">{orderNumber}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span className="text-gray-600">Tanggal:</span>
-                <span className="font-medium">{new Date().toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span className="text-gray-600">Total:</span>
-                <span className="font-medium">Rp {total.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span className="text-gray-600">Metode Pembayaran:</span>
-                <span className="font-medium">
-                  {paymentMethods.find(p => p.id === selectedPayment)?.name || "Transfer Bank"}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition duration-300"
-              >
-                Kembali ke Beranda
-              </Link>
-              <button
-                className="border border-blue-600 text-blue-600 hover:bg-blue-50 font-medium py-2 px-6 rounded-md transition duration-300"
-              >
-                Lihat Status Pesanan
-              </button>
-            </div>
-          </div>
+          <OrderComplete
+            orderNumber={orderNumber}
+            total={total}
+            selectedShipping={selectedShipping}
+            selectedPayment={selectedPayment}
+          />
         </main>
         <Footer />
       </div>
@@ -259,197 +398,33 @@ const CheckoutPage = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
-              {/* Checkout Steps */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full ${activeStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                      1
-                    </div>
-                    <span className="ml-2 font-medium">Informasi Pengiriman</span>
-                  </div>
-                  <div className="h-0.5 w-12 bg-gray-200 hidden sm:block"></div>
-                  <div className="flex items-center">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full ${activeStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                      2
-                    </div>
-                    <span className="ml-2 font-medium">Metode Pengiriman</span>
-                  </div>
-                  <div className="h-0.5 w-12 bg-gray-200 hidden sm:block"></div>
-                  <div className="flex items-center">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full ${activeStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                      3
-                    </div>
-                    <span className="ml-2 font-medium">Pembayaran</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 1: Shipping Information */}
+              <CheckoutSteps activeStep={activeStep} />
               {activeStep === 1 && (
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">Informasi Pengiriman</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                        Nama Lengkap *
-                      </label>
-                      <input
-                        type="text"
-                        id="fullName"
-                        name="fullName"
-                        value={shippingInfo.fullName}
-                        onChange={handleInputChange}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                        Email *
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value={shippingInfo.email}
-                        onChange={handleInputChange}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                        Nomor Telepon *
-                      </label>
-                      <input
-                        type="tel"
-                        id="phone"
-                        name="phone"
-                        value={shippingInfo.phone}
-                        onChange={handleInputChange}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                        Alamat *
-                      </label>
-                      <input
-                        type="text"
-                        id="address"
-                        name="address"
-                        value={shippingInfo.address}
-                        onChange={handleInputChange}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
-                        Kota *
-                      </label>
-                      <input
-                        type="text"
-                        id="city"
-                        name="city"
-                        value={shippingInfo.city}
-                        onChange={handleInputChange}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700 mb-1">
-                        Kode Pos *
-                      </label>
-                      <input
-                        type="text"
-                        id="postalCode"
-                        name="postalCode"
-                        value={shippingInfo.postalCode}
-                        onChange={handleInputChange}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-                        Catatan (opsional)
-                      </label>
-                      <textarea
-                        id="notes"
-                        name="notes"
-                        value={shippingInfo.notes}
-                        onChange={handleInputChange}
-                        rows={3}
-                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <ShippingInfoStep
+                  shippingInfo={shippingInfo}
+                  handleInputChange={handleInputChange}
+                  destinationSearch={destinationSearch}
+                  setDestinationSearch={setDestinationSearch}
+                  destinations={destinations}
+                  isSearchingDestination={isSearchingDestination}
+                  handleDestinationSelect={handleDestinationSelect}
+                  searchDestinations={searchDestinations}
+                />
               )}
-
-              {/* Step 2: Shipping Method */}
               {activeStep === 2 && (
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">Metode Pengiriman</h2>
-                  <div className="space-y-4">
-                    {shippingOptions.map((option) => (
-                      <div 
-                        key={option.id}
-                        className={`border rounded-md p-4 cursor-pointer ${selectedShipping.id === option.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-                        onClick={() => handleShippingChange(option)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className={`w-5 h-5 rounded-full border ${selectedShipping.id === option.id ? 'border-blue-500' : 'border-gray-400'} flex items-center justify-center`}>
-                              {selectedShipping.id === option.id && (
-                                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                              )}
-                            </div>
-                            <span className="ml-3 font-medium">{option.name}</span>
-                          </div>
-                          <span className="font-medium">Rp {option.price.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <ShippingMethodStep
+                  shippingServices={shippingServices}
+                  isLoadingShipping={isLoadingShipping}
+                  selectedShipping={selectedShipping}
+                  handleShippingChange={handleShippingChange}
+                />
               )}
-
-              {/* Step 3: Payment Method */}
               {activeStep === 3 && (
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">Metode Pembayaran</h2>
-                  <div className="space-y-4">
-                    {paymentMethods.map((method) => (
-                      <div 
-                        key={method.id}
-                        className={`border rounded-md p-4 cursor-pointer ${selectedPayment === method.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-                        onClick={() => handlePaymentChange(method.id)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className={`w-5 h-5 rounded-full border ${selectedPayment === method.id ? 'border-blue-500' : 'border-gray-400'} flex items-center justify-center`}>
-                              {selectedPayment === method.id && (
-                                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                              )}
-                            </div>
-                            <span className="ml-3 font-medium">{method.name}</span>
-                          </div>
-                          <div className="w-12 h-8 bg-gray-100 rounded flex items-center justify-center">
-                            <img src={method.icon} alt={method.name} className="h-6" />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <PaymentMethodStep
+                  selectedPayment={selectedPayment}
+                  handlePaymentChange={handlePaymentChange}
+                />
               )}
-
-              {/* Navigation Buttons */}
               <div className="mt-8 flex justify-between">
                 {activeStep > 1 ? (
                   <button
@@ -478,54 +453,12 @@ const CheckoutPage = () => {
                 </button>
               </div>
             </div>
-
-            {/* Order Summary */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-md p-6 sticky top-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-6">Ringkasan Pesanan</h2>
-                <div className="flow-root">
-                  <ul className="-my-4 divide-y divide-gray-200">
-                    {cartItems.map((item) => (
-                      <li key={item.product.id} className="py-4 flex">
-                        <div className="flex-shrink-0 w-16 h-16">
-                          <img
-                            src={item.product.imageUrl}
-                            alt={item.product.name}
-                            className="w-full h-full object-cover rounded"
-                          />
-                        </div>
-                        <div className="ml-4 flex-1">
-                          <div className="flex justify-between">
-                            <h3 className="text-sm font-medium text-gray-900">{item.product.name}</h3>
-                            <p className="text-sm font-medium text-gray-900">
-                              Rp {(item.product.price * item.quantity).toLocaleString()}
-                            </p>
-                          </div>
-                          <p className="mt-1 text-sm text-gray-500">{item.product.category}</p>
-                          <p className="mt-1 text-sm text-gray-500">Qty: {item.quantity}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="mt-6 border-t border-gray-200 pt-6">
-                  <dl className="-my-4 text-sm divide-y divide-gray-200">
-                    <div className="py-4 flex items-center justify-between">
-                      <dt className="text-gray-600">Subtotal</dt>
-                      <dd className="font-medium text-gray-900">Rp {subtotal.toLocaleString()}</dd>
-                    </div>
-                    <div className="py-4 flex items-center justify-between">
-                      <dt className="text-gray-600">Pengiriman</dt>
-                      <dd className="font-medium text-gray-900">Rp {shippingCost.toLocaleString()}</dd>
-                    </div>
-                    <div className="py-4 flex items-center justify-between">
-                      <dt className="text-base font-medium text-gray-900">Total</dt>
-                      <dd className="text-base font-medium text-gray-900">Rp {total.toLocaleString()}</dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
-            </div>
+            <OrderSummary
+              cartItems={cartItems}
+              subtotal={subtotal}
+              shippingCost={shippingCost}
+              total={total}
+            />
           </div>
         )}
       </main>

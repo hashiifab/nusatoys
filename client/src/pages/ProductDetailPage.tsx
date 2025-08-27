@@ -11,7 +11,6 @@ import { Product } from "../lib/types";
 
 // Sample product data (in a real app, this would come from an API)
 const sampleProducts: Product[] = [
-  
   {
     id: "robotik-kit-advanced",
     name: "Robotik Kit Advanced",
@@ -139,10 +138,10 @@ const ProductDetailPage = () => {
       setProduct(foundProduct);
       // Set page title
       document.title = `${foundProduct.name} | NusaToys`;
-      
+
       // Scroll to top when product changes
       if (topRef.current) {
-        topRef.current.scrollIntoView({ behavior: 'smooth' });
+        topRef.current.scrollIntoView({ behavior: "smooth" });
       } else {
         window.scrollTo(0, 0);
       }
@@ -187,10 +186,19 @@ const ProductDetailPage = () => {
           </button>
         </div>
         <ProductInfo product={product} />
-        <ProductFeatures product={product} />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ProductFeatures product={product} />
+            <EducationalBenefits product={product} />
+          </div>
+        </div>
         <ProductSpecifications product={product} />
-        <EducationalBenefits product={product} />
-        <SimilarProducts products={sampleProducts} currentProductId={product.id} showAddButton={false} />
+
+        <SimilarProducts
+          products={sampleProducts}
+          currentProductId={product.id}
+          showAddButton={false}
+        />
       </main>
       <Footer />
     </div>
