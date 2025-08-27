@@ -6,7 +6,7 @@ import { loadCart, getCartTotal, clearCart } from "../lib/cartUtils";
 import CheckoutSteps from "../components/checkout/CheckoutSteps";
 import ShippingInfoStep from "../components/checkout/ShippingInfoStep";
 import ShippingMethodStep from "../components/checkout/ShippingMethodStep";
-import PaymentMethodStep from "../components/checkout/PaymentMethodStep";
+import ConfirmationStep from "../components/checkout/ConfirmationStep";
 import OrderSummary from "../components/checkout/OrderSummary";
 import OrderComplete from "../components/checkout/OrderComplete";
 
@@ -33,12 +33,6 @@ export interface ShippingInfo {
   destination: string;
   postalCode: string;
   notes: string;
-}
-
-export interface PaymentMethod {
-  id: string;
-  name: string;
-  icon: string;
 }
 
 export interface Destination {
@@ -78,9 +72,11 @@ export interface ShippingResult {
 
 export interface ShippingResponse {
   success: boolean;
-  data: ShippingResult[] | {
-    results: ShippingResult[];
-  };
+  data:
+    | ShippingResult[]
+    | {
+        results: ShippingResult[];
+      };
 }
 
 export interface DestinationResponse {
@@ -88,23 +84,16 @@ export interface DestinationResponse {
   data: Destination[];
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export const paymentMethods: PaymentMethod[] = [
-  { id: "bca", name: "BCA", icon: "/bca-icon.png" },
-  { id: "mandiri", name: "Mandiri", icon: "/mandiri-icon.png" },
-  { id: "bni", name: "BNI", icon: "/bni-icon.png" },
-  { id: "bri", name: "BRI", icon: "/bri-icon.png" },
-];
-
 const CheckoutPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeStep, setActiveStep] = useState<number>(1);
-  const [selectedShipping, setSelectedShipping] = useState<ShippingService | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<string>("");
+  const [selectedShipping, setSelectedShipping] =
+    useState<ShippingService | null>(null);
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+  const [isConfirming, setIsConfirming] = useState(false);
   const navigate = useNavigate();
 
   const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
@@ -119,9 +108,12 @@ const CheckoutPage = () => {
 
   // Lincah API states
   const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [shippingServices, setShippingServices] = useState<ShippingService[]>([]);
+  const [shippingServices, setShippingServices] = useState<ShippingService[]>(
+    []
+  );
   const [destinationSearch, setDestinationSearch] = useState("");
-  const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
+  const [selectedDestination, setSelectedDestination] =
+    useState<Destination | null>(null);
   const [isSearchingDestination, setIsSearchingDestination] = useState(false);
   const [isLoadingShipping, setIsLoadingShipping] = useState(false);
 
@@ -130,7 +122,8 @@ const CheckoutPage = () => {
     const items = loadCart();
     setCartItems(items);
     setIsLoading(false);
-    const randomOrderNumber = "NT" + Math.floor(100000 + Math.random() * 900000);
+    const randomOrderNumber =
+      "NT" + Math.floor(100000 + Math.random() * 900000);
     setOrderNumber(randomOrderNumber);
   }, []);
 
@@ -138,20 +131,18 @@ const CheckoutPage = () => {
     navigate(-1);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setShippingInfo(prev => ({
+    setShippingInfo((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleShippingChange = (service: ShippingService) => {
     setSelectedShipping(service);
-  };
-
-  const handlePaymentChange = (paymentId: string) => {
-    setSelectedPayment(paymentId);
   };
 
   const getTotalWeight = () => {
@@ -164,7 +155,7 @@ const CheckoutPage = () => {
           weight = parseFloat(weightMatch[1]);
         }
       }
-      return total + (weight * item.quantity);
+      return total + weight * item.quantity;
     }, 0);
   };
 
@@ -173,16 +164,18 @@ const CheckoutPage = () => {
       setDestinations([]);
       return;
     }
-    
+
     setIsSearchingDestination(true);
     try {
-      const response = await fetch(`/api/lincah/destination/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(
+        `/api/lincah/destination/search?q=${encodeURIComponent(query)}`
+      );
       const data: DestinationResponse = await response.json();
       if (data.success && data.data) {
         setDestinations(data.data || []);
       }
     } catch (error) {
-      console.error('Error searching destinations:', error);
+      console.error("Error searching destinations:", error);
     } finally {
       setIsSearchingDestination(false);
     }
@@ -193,7 +186,7 @@ const CheckoutPage = () => {
 
     const totalWeight = getTotalWeight();
     if (totalWeight <= 0) {
-      console.error('Invalid total weight:', totalWeight);
+      console.error("Invalid total weight:", totalWeight);
       return;
     }
 
@@ -209,59 +202,62 @@ const CheckoutPage = () => {
       const payload: ShippingPayload = {
         origin_code: "32.71.04",
         destination_code: selectedDestination.code,
-        weight: Math.max(totalWeight, 0.1)
+        weight: Math.max(totalWeight, 0.1),
       };
 
-      console.log('Calculating shipping with payload:', payload);
+      console.log("Calculating shipping with payload:", payload);
 
-      const response = await fetch('/api/lincah/shipping/cost', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const response = await fetch("/api/lincah/shipping/cost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-      
+
       const data: ShippingResponse = await response.json();
-      console.log('Shipping response:', data);
-      
+      console.log("Shipping response:", data);
+
       if (data.success && data.data) {
         const services: ShippingService[] = [];
-        const results = Array.isArray(data.data) ? data.data : (data.data as { results: ShippingResult[] }).results;
-        
+        const results = Array.isArray(data.data)
+          ? data.data
+          : (data.data as { results: ShippingResult[] }).results;
+
         if (Array.isArray(results)) {
           results.forEach((result: ShippingResult) => {
             if (result.costs && Array.isArray(result.costs)) {
               result.costs.forEach((cost: ShippingCost) => {
                 let costData: CostData | undefined;
-                
+
                 if (Array.isArray(cost.cost)) {
                   costData = cost.cost[0];
-                } else if (cost.cost && typeof cost.cost === 'object') {
+                } else if (cost.cost && typeof cost.cost === "object") {
                   costData = cost.cost;
                 } else if (cost.costs && Array.isArray(cost.costs)) {
                   costData = cost.costs[0];
                 }
-                
+
                 if (costData && costData.value) {
                   services.push({
-                    service: result.name || result.code || 'Unknown',
-                    description: cost.service || cost.service_name || 'Standard',
+                    service: result.name || result.code || "Unknown",
+                    description:
+                      cost.service || cost.service_name || "Standard",
                     price: costData.value,
-                    etd: costData.etd || costData.est || '3-5'
+                    etd: costData.etd || costData.est || "3-5",
                   });
                 }
               });
             }
           });
         }
-        
+
         setShippingServices(services);
-        console.log('Loaded shipping services:', services);
+        console.log("Loaded shipping services:", services);
       } else {
-        console.error('Invalid shipping response:', data);
+        console.error("Invalid shipping response:", data);
         setShippingServices([]);
       }
     } catch (error) {
-      console.error('Error calculating shipping:', error);
+      console.error("Error calculating shipping:", error);
       setShippingServices([]);
     } finally {
       setIsLoadingShipping(false);
@@ -271,7 +267,7 @@ const CheckoutPage = () => {
   const handleDestinationSelect = (destination: Destination) => {
     setSelectedDestination(destination);
     const fullAddress = `${destination.name}, ${destination.city}, ${destination.province}`;
-    setShippingInfo(prev => ({ ...prev, destination: fullAddress }));
+    setShippingInfo((prev) => ({ ...prev, destination: fullAddress }));
     setDestinations([]);
     setDestinationSearch(fullAddress);
     setShippingServices([]);
@@ -281,7 +277,7 @@ const CheckoutPage = () => {
     if (activeStep === 1 && selectedDestination) {
       calculateShipping();
     }
-    
+
     if (activeStep < 3) {
       setActiveStep(activeStep + 1);
     } else {
@@ -311,8 +307,50 @@ const CheckoutPage = () => {
     return selectedShipping !== null;
   };
 
-  const isStepThreeValid = () => {
-    return selectedPayment !== "";
+  const handleConfirmOrder = async () => {
+    setIsConfirming(true);
+    
+    try {
+      // Prepare order data for Xendit
+      const orderItems = cartItems.map(item => ({
+        name: item.product.name,
+        price: item.product.price,
+        quantity: item.quantity
+      }));
+      
+      const totalAmount = getCartTotal() + (selectedShipping?.price || 0);
+      
+      const response = await fetch('http://localhost:3000/api/xendit/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          product: orderItems.map(item => item.name).join(', '),
+          amount: totalAmount,
+          qty: orderItems.reduce((sum, item) => sum + item.quantity, 0),
+          buyerName: shippingInfo.fullName,
+          buyerEmail: shippingInfo.email,
+          buyerPhone: shippingInfo.phone,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.data.invoice_url) {
+        // Clear cart and redirect to Xendit payment page
+        clearCart();
+        window.location.href = data.data.invoice_url;
+      } else {
+        console.error('Failed to create payment:', data.error);
+        alert('Gagal membuat pembayaran. Silakan coba lagi.');
+      }
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      alert('Terjadi kesalahan saat membuat pembayaran.');
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const subtotal = getCartTotal();
@@ -328,7 +366,6 @@ const CheckoutPage = () => {
             orderNumber={orderNumber}
             total={total}
             selectedShipping={selectedShipping}
-            selectedPayment={selectedPayment}
           />
         </main>
         <Footer />
@@ -420,38 +457,46 @@ const CheckoutPage = () => {
                 />
               )}
               {activeStep === 3 && (
-                <PaymentMethodStep
-                  selectedPayment={selectedPayment}
-                  handlePaymentChange={handlePaymentChange}
+                <ConfirmationStep
+                  cartItems={cartItems}
+                  shippingInfo={shippingInfo}
+                  selectedShipping={selectedShipping}
+                  subtotal={subtotal}
+                  shippingCost={shippingCost}
+                  total={total}
+                  onConfirmOrder={handleConfirmOrder}
+                  isConfirming={isConfirming}
                 />
               )}
-              <div className="mt-8 flex justify-between">
-                {activeStep > 1 ? (
+              {activeStep < 3 && (
+                <div className="mt-8 flex justify-between">
+                  {activeStep > 1 ? (
+                    <button
+                      onClick={handlePrevStep}
+                      className="bg-white border border-gray-300 text-gray-700 font-medium py-2 px-6 rounded-md hover:bg-gray-50 transition duration-300"
+                    >
+                      Kembali
+                    </button>
+                  ) : (
+                    <div></div>
+                  )}
                   <button
-                    onClick={handlePrevStep}
-                    className="bg-white border border-gray-300 text-gray-700 font-medium py-2 px-6 rounded-md hover:bg-gray-50 transition duration-300"
+                    onClick={handleNextStep}
+                    disabled={
+                      (activeStep === 1 && !isStepOneValid()) ||
+                      (activeStep === 2 && !isStepTwoValid())
+                    }
+                    className={`${
+                      (activeStep === 1 && !isStepOneValid()) ||
+                      (activeStep === 2 && !isStepTwoValid())
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700"
+                    } text-white font-medium py-2 px-6 rounded-md transition duration-300`}
                   >
-                    Kembali
+                    Lanjutkan
                   </button>
-                ) : (
-                  <div></div>
-                )}
-                <button
-                  onClick={handleNextStep}
-                  disabled={
-                    (activeStep === 1 && !isStepOneValid()) ||
-                    (activeStep === 2 && !isStepTwoValid()) ||
-                    (activeStep === 3 && !isStepThreeValid())
-                  }
-                  className={`${(activeStep === 1 && !isStepOneValid()) ||
-                    (activeStep === 2 && !isStepTwoValid()) ||
-                    (activeStep === 3 && !isStepThreeValid())
-                      ? 'bg-gray-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium py-2 px-6 rounded-md transition duration-300`}
-                >
-                  {activeStep < 3 ? 'Lanjutkan' : 'Selesaikan Pesanan'}
-                </button>
-              </div>
+                </div>
+              )}
             </div>
             <OrderSummary
               cartItems={cartItems}

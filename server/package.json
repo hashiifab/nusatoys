@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "hono": "^4.7.11",
-    "shared": "workspace:*"
+    "shared": "workspace:*",
+    "xendit-node": "^7.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest"

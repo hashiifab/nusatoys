@@ -1,19 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShippingService, paymentMethods, PaymentMethod } from '../../pages/CheckoutPage';
+import { ShippingService } from '../../pages/CheckoutPage';
 
 interface OrderCompleteProps {
   orderNumber: string;
   total: number;
   selectedShipping: ShippingService | null;
-  selectedPayment: string;
 }
 
 const OrderComplete: React.FC<OrderCompleteProps> = ({
   orderNumber,
   total,
-  selectedShipping,
-  selectedPayment
+  selectedShipping
 }) => (
   <div className="text-center py-16">
     <div className="mb-6 flex justify-center">
@@ -58,12 +56,7 @@ const OrderComplete: React.FC<OrderCompleteProps> = ({
           {selectedShipping ? `${selectedShipping.service} - ${selectedShipping.description}` : "-"}
         </span>
       </div>
-      <div className="flex justify-between mb-2">
-        <span className="text-gray-600">Metode Pembayaran:</span>
-        <span className="font-medium">
-          {paymentMethods.find((p: PaymentMethod) => p.id === selectedPayment)?.name || "Transfer Bank"}
-        </span>
-      </div>
+
     </div>
     <div className="flex flex-col sm:flex-row gap-4 justify-center">
       <Link

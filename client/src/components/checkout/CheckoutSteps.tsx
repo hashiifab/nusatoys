@@ -25,7 +25,7 @@ const CheckoutSteps: React.FC<CheckoutStepsProps> = ({ activeStep }) => (
         <div className={`flex items-center justify-center w-8 h-8 rounded-full ${activeStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
           3
         </div>
-        <span className="ml-2 font-medium">Pembayaran</span>
+        <span className="ml-2 font-medium">Konfirmasi</span>
       </div>
     </div>
   </div>

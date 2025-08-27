@@ -1,5 +1,5 @@
 {
-  "name": ".",
+  "name": "nusatoys",
   "version": "0.4.0",
   "description": "A monorepo template built with Bun, Hono, Vite, and React",
   "author": "Steve Simkins",
@@ -21,7 +21,8 @@
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "test": "turbo test",
-    "postinstall": "turbo build --filter=shared --filter=server"
+    "postinstall": "turbo build --filter=shared --filter=server",
+    "seed:admin": "node create-admin.js"
   },
   "keywords": [
     "bun",
@@ -33,7 +34,8 @@
   ],
   "devDependencies": {
     "bun-types": "latest",
-    "turbo": "^2.5.5"
+    "turbo": "^2.5.5",
+    "@supabase/supabase-js": "^2.49.4"
   },
   "peerDependencies": {
     "typescript": "^5.7.3"
