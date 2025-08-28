@@ -92,3 +92,12 @@ export const getCartItemCount = (): number => {
   const cart = loadCart();
   return cart.reduce((total, item) => total + item.quantity, 0);
 };
+
+export const generateProductSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/--+/g, '-')
+    .trim();
+};

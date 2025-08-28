@@ -13,10 +13,29 @@ export default defineConfig({
 	server: {
 		proxy: {
 			"/api": {
-				target: "http://localhost:3000",
-				changeOrigin: true,
-				secure: false,
+					target: "http://localhost:3000",
+					changeOrigin: true,
+					secure: false,
+				},
 			},
+		},
+	// Ensure all routes including admin routes are properly handled
+	build: {
+		outDir: "dist",
+		emptyOutDir: true,
+		assetsDir: "assets",
+		ssrManifest: false,
+		manifest: true,
+		minify: true,
+		// Force inclusion of all code, disable tree-shaking and code splitting
+		rollupOptions: {
+			output: {
+				manualChunks: undefined,
+				entryFileNames: 'assets/[name].js',
+				chunkFileNames: 'assets/[name].js',
+				assetFileNames: 'assets/[name].[ext]'
+			},
+			treeshake: false
 		},
 	},
 });

@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut, getCurrentUser, isAdmin } from '../../lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import AdminProductTable from './AdminProductTable';
+import AdminPaymentTable from './AdminPaymentTable';
 
 const AdminDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,42 +76,46 @@ const AdminDashboard: React.FC = () => {
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="border-4 border-dashed border-gray-200 rounded-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Welcome to Admin Dashboard
-            </h2>
-            <p className="text-gray-600 mb-6">
-              You have successfully logged in as an administrator.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Manage Products
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Add, edit, and delete products in your store.
-                </p>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  View Orders
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Monitor and manage customer orders.
-                </p>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  User Management
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Manage admin and seller accounts.
-                </p>
-              </div>
+          {/* Tab Navigation */}
+          <div className="mb-6">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('products')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'products'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Products
+                </button>
+                <button
+                  onClick={() => setActiveTab('orders')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'orders'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Orders
+                </button>
+
+              </nav>
             </div>
+          </div>
+
+          {/* Tab Content */}
+          <div>
+            {activeTab === 'products' && (
+              <AdminProductTable />
+            )}
+            
+            {activeTab === 'orders' && (
+              <AdminPaymentTable showOnlyPaid={true} />
+            )}
+            
+
           </div>
         </div>
       </main>

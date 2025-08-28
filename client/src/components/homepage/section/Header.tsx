@@ -98,16 +98,12 @@ const Header = ({ isMenuOpen, setIsMenuOpen }: HeaderProps) => {
               </svg>
               Masuk/Daftar
             </a>
-            <Link to="/cart" className="text-gray-600 hover:text-gray-900">
-              <CartIcon />
-            </Link>
+            <CartIcon className="text-gray-600 hover:text-gray-900" />
           </div>
 
           {/* Mobile Right: Cart + Burger */}
           <div className="flex items-center space-x-4 md:hidden">
-            <Link to="/cart" className="text-gray-600 hover:text-gray-900">
-              <CartIcon />
-            </Link>
+            <CartIcon className="text-gray-600 hover:text-gray-900" />
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="text-gray-600 hover:text-gray-900"

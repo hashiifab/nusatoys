@@ -37,9 +37,9 @@ lincah.post("/shipping/cost", async (c) => {
       weight: parseFloat(weight),
     };
 
-    // tambahin volume kalau ada
-    if (volume) {
-      body.volume = parseFloat(volume);
+    // Gunakan volume langsung jika tersedia
+    if (volume && typeof volume === 'string') {
+      body.volume = volume;
     }
 
     const res = await fetch("https://api.lincah.id/api/check/ongkir", {

@@ -8,22 +8,11 @@ import ShippingInfoStep from "../components/checkout/ShippingInfoStep";
 import ShippingMethodStep from "../components/checkout/ShippingMethodStep";
 import ConfirmationStep from "../components/checkout/ConfirmationStep";
 import OrderSummary from "../components/checkout/OrderSummary";
-import OrderComplete from "../components/checkout/OrderComplete";
 
-// Interfaces
-export interface CartItem {
-  product: {
-    id: string;
-    name: string;
-    price: number;
-    imageUrl: string;
-    category: string;
-    specifications?: {
-      weight?: string;
-    };
-  };
-  quantity: number;
-}
+
+// Use imported types instead of local interface
+import type { CartItem } from "../lib/types";
+
 
 export interface ShippingInfo {
   fullName: string;
@@ -91,8 +80,6 @@ const CheckoutPage = () => {
   const [activeStep, setActiveStep] = useState<number>(1);
   const [selectedShipping, setSelectedShipping] =
     useState<ShippingService | null>(null);
-  const [orderComplete, setOrderComplete] = useState(false);
-  const [orderNumber, setOrderNumber] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
   const navigate = useNavigate();
 
@@ -122,9 +109,6 @@ const CheckoutPage = () => {
     const items = loadCart();
     setCartItems(items);
     setIsLoading(false);
-    const randomOrderNumber =
-      "NT" + Math.floor(100000 + Math.random() * 900000);
-    setOrderNumber(randomOrderNumber);
   }, []);
 
   const handleGoBack = () => {
@@ -148,8 +132,8 @@ const CheckoutPage = () => {
   const getTotalWeight = () => {
     return cartItems.reduce((total, item) => {
       let weight = 1;
-      if (item.product.specifications?.weight) {
-        const weightStr = item.product.specifications.weight;
+      if (item.product.specification?.weight) {
+        const weightStr = item.product.specification.weight;
         const weightMatch = weightStr.match(/(\d+(?:\.\d+)?)/);
         if (weightMatch) {
           weight = parseFloat(weightMatch[1]);
@@ -157,6 +141,32 @@ const CheckoutPage = () => {
       }
       return total + weight * item.quantity;
     }, 0);
+  };
+
+  const getTotalVolume = () => {
+    // Calculate total volume from all items
+    let totalLength = 0;
+    let totalWidth = 0;
+    let totalHeight = 0;
+    
+    cartItems.forEach(item => {
+      if (item.product.specification?.volume) {
+        const volume = item.product.specification.volume;
+        const length = parseFloat(volume.length) || 0;
+        const width = parseFloat(volume.width) || 0;
+        const height = parseFloat(volume.height) || 0;
+        
+        totalLength += length * item.quantity;
+        totalWidth += width * item.quantity;
+        totalHeight += height * item.quantity;
+      }
+    });
+    
+    // Return as string format "lengthxwidthxheight"
+    const length = Math.max(totalLength, 1);
+    const width = Math.max(totalWidth, 1);
+    const height = Math.max(totalHeight, 1);
+    return `${length}x${width}x${height}`;
   };
 
   const searchDestinations = async (query: string) => {
@@ -168,7 +178,9 @@ const CheckoutPage = () => {
     setIsSearchingDestination(true);
     try {
       const response = await fetch(
-        `/api/lincah/destination/search?q=${encodeURIComponent(query)}`
+        `https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/lincah-search?q=${encodeURIComponent(
+          query
+        )}`
       );
       const data: DestinationResponse = await response.json();
       if (data.success && data.data) {
@@ -194,24 +206,29 @@ const CheckoutPage = () => {
       origin_code: string;
       destination_code: string;
       weight: number;
-      volume?: number;
+      volume?: string;
     }
 
     setIsLoadingShipping(true);
     try {
+      const totalVolume = getTotalVolume();
       const payload: ShippingPayload = {
         origin_code: "32.71.04",
         destination_code: selectedDestination.code,
         weight: Math.max(totalWeight, 0.1),
+        volume: totalVolume
       };
 
       console.log("Calculating shipping with payload:", payload);
 
-      const response = await fetch("/api/lincah/shipping/cost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        "https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/lincah-shipping-cost",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data: ShippingResponse = await response.json();
       console.log("Shipping response:", data);
@@ -281,7 +298,7 @@ const CheckoutPage = () => {
     if (activeStep < 3) {
       setActiveStep(activeStep + 1);
     } else {
-      setOrderComplete(true);
+      
       clearCart();
     }
   };
@@ -311,7 +328,7 @@ const CheckoutPage = () => {
     setIsConfirming(true);
     
     try {
-      // Prepare order data for Xendit
+      // Prepare order data for payment
       const orderItems = cartItems.map(item => ({
         name: item.product.name,
         price: item.product.price,
@@ -320,7 +337,7 @@ const CheckoutPage = () => {
       
       const totalAmount = getCartTotal() + (selectedShipping?.price || 0);
       
-      const response = await fetch('http://localhost:3000/api/xendit/payments', {
+      const response = await fetch('https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/payments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -332,6 +349,7 @@ const CheckoutPage = () => {
           buyerName: shippingInfo.fullName,
           buyerEmail: shippingInfo.email,
           buyerPhone: shippingInfo.phone,
+          shippingAddress: shippingInfo,
         }),
       });
 
@@ -357,21 +375,7 @@ const CheckoutPage = () => {
   const shippingCost = selectedShipping ? selectedShipping.price : 0;
   const total = subtotal + shippingCost;
 
-  if (orderComplete) {
-    return (
-      <div className="bg-white min-h-screen">
-        <Header isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <OrderComplete
-            orderNumber={orderNumber}
-            total={total}
-            selectedShipping={selectedShipping}
-          />
-        </main>
-        <Footer />
-      </div>
-    );
-  }
+  
 
   return (
     <div className="bg-white min-h-screen">

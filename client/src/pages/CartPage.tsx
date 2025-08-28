@@ -2,132 +2,22 @@ import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Header from "../components/homepage/section/Header";
 import Footer from "../components/homepage/section/Footer";
-import { CartItem, Product } from "../lib/types";
-import SimilarProducts from "../components/product/SimilarProducts";
+import { CartItem } from "../lib/types";
 import {
   loadCart,
   removeFromCart,
   updateQuantity,
   getCartTotal,
+  generateProductSlug,
 } from "../lib/cartUtils";
-
-// Sample product data (in a real app, this would come from an API)
-const sampleProducts: Product[] = [
-  {
-    id: "robotik-kit-advanced",
-    name: "Robotik Kit Advanced",
-    price: 1899000,
-    originalPrice: 2399000,
-    description:
-      "Kit robotik canggih untuk anak-anak yang ingin belajar pemrograman dan elektronika. Dilengkapi dengan komponen berkualitas tinggi dan panduan lengkap.",
-    rating: 4.8,
-    reviewCount: 85,
-    imageUrl: "/Advanced Robotics Kit.png",
-    category: "ROBOTIK & PROGRAMMING",
-    badge: {
-      text: "STEM Choice",
-      color: "green",
-    },
-    features: [
-      "200+ komponen elektronik berkualitas",
-      "Kompatibel dengan Arduino",
-      "Panduan proyek step-by-step",
-      "Aplikasi pemrograman visual",
-      "Sensor ultrasonik dan inframerah",
-      "Motor servo presisi tinggi",
-    ],
-    specifications: {
-      age: "10+ Tahun",
-      experiments: "15+ Proyek",
-      safety: "CE Certified",
-      weight: "1.5 kg",
-      certificate: "CE, RoHS",
-      language: "Bahasa Indonesia & English",
-    },
-    educationalBenefits: [
-      "Pengenalan dasar pemrograman",
-      "Pengembangan logika dan algoritma",
-      "Pemahaman elektronika dasar",
-      "Keterampilan pemecahan masalah",
-    ],
-  },
-  {
-    id: "masjid-al-aqsa",
-    name: "Masjid Al-Aqsa",
-    price: 175000,
-    originalPrice: 200000,
-    description:
-      "Model bangunan Masjid Al-Aqsa yang detail dan akurat. Terbuat dari bahan berkualitas tinggi dan aman untuk anak-anak.",
-    rating: 4.9,
-    reviewCount: 56,
-    imageUrl: "/masjid-al-aqsa.jpg",
-    category: "BUILDING & ARCHITECTURE",
-    badge: {
-      text: "Best Seller",
-      color: "yellow",
-    },
-    features: [
-      "1032 blok bangunan presisi tinggi",
-      "Desain arsitektur detail",
-      "Instruksi perakitan bergambar",
-      "Kompatibel dengan brand building block lain",
-      "Ukuran jadi: 28 x 19 x 10 cm",
-    ],
-    specifications: {
-      age: "8+ Tahun",
-      safety: "Non-toxic ABS Plastic",
-      weight: "0.8 kg",
-      certificate: "CE, ASTM",
-      language: "Bahasa Indonesia",
-    },
-    educationalBenefits: [
-      "Mengembangkan kemampuan motorik halus",
-      "Melatih kesabaran dan konsentrasi",
-      "Memahami konsep arsitektur dan geometri",
-      "Mengenal budaya dan sejarah Islam",
-    ],
-  },
-  {
-    id: "masjid-nabawi",
-    name: "Masjid Nabawi",
-    price: 175000,
-    originalPrice: 200000,
-    description:
-      "Model bangunan Masjid Nabawi yang detail dan akurat. Terbuat dari bahan berkualitas tinggi dan aman untuk anak-anak.",
-    rating: 4.9,
-    reviewCount: 42,
-    imageUrl: "/Masjid Nabawi.jpg",
-    category: "BUILDING & ARCHITECTURE",
-    badge: {
-      text: "New",
-      color: "sky",
-    },
-    features: [
-      "1114 blok bangunan presisi tinggi",
-      "Desain arsitektur detail",
-      "Instruksi perakitan bergambar",
-      "Kompatibel dengan brand building block lain",
-      "Ukuran jadi: 30 x 20 x 12 cm",
-    ],
-    specifications: {
-      age: "8+ Tahun",
-      safety: "Non-toxic ABS Plastic",
-      weight: "0.85 kg",
-      certificate: "CE, ASTM",
-      language: "Bahasa Indonesia",
-    },
-    educationalBenefits: [
-      "Mengembangkan kemampuan motorik halus",
-      "Melatih kesabaran dan konsentrasi",
-      "Memahami konsep arsitektur dan geometri",
-      "Mengenal budaya dan sejarah Islam",
-    ],
-  },
-];
+import RecommendationProduct from "@/components/product/RecommendationProduct";
+import { Product } from "@/lib/types";
 
 const CartPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -150,6 +40,7 @@ const CartPage = () => {
 
     // Initial cart load
     refreshCart();
+    fetchProducts();
 
     // Scroll to top when navigating to cart page
     if (topRef.current) {
@@ -171,13 +62,24 @@ const CartPage = () => {
     };
   }, [location.pathname]);
 
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch('/api/products');
+      const data = await response.json();
+      setProducts(data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
   const handleRemoveItem = (productId: string) => {
     removeFromCart(productId);
     setCartItems(loadCart());
   };
 
-  const handleQuantityChange = (productId: string, newQuantity: number) => {
+  const handleQuantityChange = (productId: string, newQuantity: number, maxStock: number) => {
     if (newQuantity < 1) return;
+    if (newQuantity > maxStock) return;
     updateQuantity(productId, newQuantity);
     setCartItems(loadCart());
   };
@@ -256,7 +158,7 @@ const CartPage = () => {
                       <div className="flex flex-col sm:flex-row">
                         <div className="flex-shrink-0 w-full sm:w-32 h-32 mb-4 sm:mb-0">
                           <img
-                            src={item.product.imageUrl}
+                            src={item.product.image_url || '/placeholder.jpg'}
                             alt={item.product.name}
                             className="w-full h-full object-cover rounded-md"
                           />
@@ -266,15 +168,13 @@ const CartPage = () => {
                             <div>
                               <h3 className="text-lg font-medium text-gray-900">
                                 <Link
-                                  to={`/product/${item.product.id}`}
+                                  to={`/product/${generateProductSlug(item.product.name)}`}
                                   className="hover:text-blue-600"
                                 >
                                   {item.product.name}
                                 </Link>
                               </h3>
-                              <p className="mt-1 text-sm text-gray-500">
-                                {item.product.category}
-                              </p>
+
                             </div>
                             <p className="text-lg font-medium text-gray-900">
                               Rp{" "}
@@ -291,7 +191,8 @@ const CartPage = () => {
                                 onClick={() =>
                                   handleQuantityChange(
                                     item.product.id,
-                                    item.quantity - 1
+                                    item.quantity - 1,
+                                    item.product.stock
                                   )
                                 }
                                 disabled={item.quantity <= 1}
@@ -320,9 +221,11 @@ const CartPage = () => {
                                 onClick={() =>
                                   handleQuantityChange(
                                     item.product.id,
-                                    item.quantity + 1
+                                    item.quantity + 1,
+                                    item.product.stock
                                   )
                                 }
+                                disabled={item.quantity >= item.product.stock}
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
@@ -408,14 +311,13 @@ const CartPage = () => {
 
         {/* Product Recommendations */}
         <div className="mt-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-8">
-            Rekomendasi Produk
-          </h2>
-          <SimilarProducts
-            products={sampleProducts}
-            currentProductId=""
-            showAddButton={true}
-          />
+          {products.length > 0 && (
+            <RecommendationProduct
+              products={products}
+              currentProductId={cartItems[0]?.product.id || ""}
+              showAddButton={true}
+            />
+          )}
         </div>
       </main>
       <Footer />

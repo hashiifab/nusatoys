@@ -12,7 +12,8 @@ FROM oven/bun:1.2.4 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN bun run build
+# Build for single origin
+RUN bun run build:single
 
 # Stage 3: Production
 FROM oven/bun:1.2.4-slim AS production
@@ -25,12 +26,12 @@ COPY server/package.json ./server/
 COPY shared/package.json ./shared/
 
 # Copy built code
-COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/server/dist ./server/dist
+COPY --from=builder /app/server/static ./server/static
 COPY --from=builder /app/shared/dist ./shared/dist
 
 # Install only prod deps
 RUN bun install --production --ignore-scripts
 
 EXPOSE 3000
-CMD ["bun", "server/dist/index.js"]
+CMD ["bun", "run", "start:single"]

@@ -1,163 +1,86 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import Header from "../components/homepage/section/Header";
 import Footer from "../components/homepage/section/Footer";
 import ProductInfo from "../components/product/ProductInfo";
-import ProductFeatures from "../components/product/ProductFeatures";
 import ProductSpecifications from "../components/product/ProductSpecifications";
-import EducationalBenefits from "../components/product/EducationalBenefits";
-import SimilarProducts from "../components/product/SimilarProducts";
+import RecommendationProduct from "../components/product/RecommendationProduct";
 import { Product } from "../lib/types";
-
-// Sample product data (in a real app, this would come from an API)
-const sampleProducts: Product[] = [
-  {
-    id: "robotik-kit-advanced",
-    name: "Robotik Kit Advanced",
-    price: 1899000,
-    originalPrice: 2399000,
-    description:
-      "Kit robotik canggih untuk anak-anak yang ingin belajar pemrograman dan elektronika. Dilengkapi dengan komponen berkualitas tinggi dan panduan lengkap.",
-    rating: 4.8,
-    reviewCount: 85,
-    imageUrl: "/Advanced Robotics Kit.png",
-    category: "ROBOTIK & PROGRAMMING",
-    badge: {
-      text: "STEM Choice",
-      color: "green",
-    },
-    features: [
-      "200+ komponen elektronik berkualitas",
-      "Kompatibel dengan Arduino",
-      "Panduan proyek step-by-step",
-      "Aplikasi pemrograman visual",
-      "Sensor ultrasonik dan inframerah",
-      "Motor servo presisi tinggi",
-    ],
-    specifications: {
-      age: "10+ Tahun",
-      experiments: "15+ Proyek",
-      safety: "CE Certified",
-      weight: "1.5 kg",
-      certificate: "CE, RoHS",
-      language: "Bahasa Indonesia & English",
-    },
-    educationalBenefits: [
-      "Pengenalan dasar pemrograman",
-      "Pengembangan logika dan algoritma",
-      "Pemahaman elektronika dasar",
-      "Keterampilan pemecahan masalah",
-    ],
-  },
-  {
-    id: "masjid-al-aqsa",
-    name: "Masjid Al-Aqsa",
-    price: 175000,
-    originalPrice: 200000,
-    description:
-      "Model bangunan Masjid Al-Aqsa yang detail dan akurat. Terbuat dari bahan berkualitas tinggi dan aman untuk anak-anak.",
-    rating: 4.9,
-    reviewCount: 56,
-    imageUrl: "/masjid-al-aqsa.jpg",
-    category: "BUILDING & ARCHITECTURE",
-    badge: {
-      text: "Best Seller",
-      color: "yellow",
-    },
-    features: [
-      "1032 blok bangunan presisi tinggi",
-      "Desain arsitektur detail",
-      "Instruksi perakitan bergambar",
-      "Kompatibel dengan brand building block lain",
-      "Ukuran jadi: 28 x 19 x 10 cm",
-    ],
-    specifications: {
-      age: "8+ Tahun",
-      safety: "Non-toxic ABS Plastic",
-      weight: "0.8 kg",
-      certificate: "CE, ASTM",
-      language: "Bahasa Indonesia",
-    },
-    educationalBenefits: [
-      "Mengembangkan kemampuan motorik halus",
-      "Melatih kesabaran dan konsentrasi",
-      "Memahami konsep arsitektur dan geometri",
-      "Mengenal budaya dan sejarah Islam",
-    ],
-  },
-  {
-    id: "masjid-nabawi",
-    name: "Masjid Nabawi",
-    price: 175000,
-    originalPrice: 200000,
-    description:
-      "Model bangunan Masjid Nabawi yang detail dan akurat. Terbuat dari bahan berkualitas tinggi dan aman untuk anak-anak.",
-    rating: 4.9,
-    reviewCount: 42,
-    imageUrl: "/Masjid Nabawi.jpg",
-    category: "BUILDING & ARCHITECTURE",
-    badge: {
-      text: "New",
-      color: "sky",
-    },
-    features: [
-      "1114 blok bangunan presisi tinggi",
-      "Desain arsitektur detail",
-      "Instruksi perakitan bergambar",
-      "Kompatibel dengan brand building block lain",
-      "Ukuran jadi: 30 x 20 x 12 cm",
-    ],
-    specifications: {
-      age: "8+ Tahun",
-      safety: "Non-toxic ABS Plastic",
-      weight: "0.85 kg",
-      certificate: "CE, ASTM",
-      language: "Bahasa Indonesia",
-    },
-    educationalBenefits: [
-      "Mengembangkan kemampuan motorik halus",
-      "Melatih kesabaran dan konsentrasi",
-      "Memahami konsep arsitektur dan geometri",
-      "Mengenal budaya dan sejarah Islam",
-    ],
-  },
-];
 
 const ProductDetailPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
-  const { productId } = useParams<{ productId: string }>();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { productSlug } = useParams<{ productSlug: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const topRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // In a real app, this would be an API call
-    const foundProduct = sampleProducts.find((p) => p.id === productId);
-    if (foundProduct) {
-      setProduct(foundProduct);
-      // Set page title
-      document.title = `${foundProduct.name} | NusaToys`;
-
-      // Scroll to top when product changes
-      if (topRef.current) {
-        topRef.current.scrollIntoView({ behavior: "smooth" });
-      } else {
-        window.scrollTo(0, 0);
-      }
+if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: "smooth" });
+    } else {
+      window.scrollTo(0, 0);
     }
-  }, [productId, location.pathname]);
 
-  if (!product) {
+  useEffect(() => {
+    fetchProduct();
+    fetchProducts();
+  }, [productSlug]);
+
+  const fetchProduct = async () => {
+    try {
+      // Menggunakan path relatif untuk API
+      const response = await fetch(`/api/products/${productSlug}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProduct(data);
+        document.title = `${data.name} | NusaToys`;
+      } else {
+        console.error('Product not found');
+        navigate('/404');
+      }
+    } catch (error) {
+      console.error('Error fetching product:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch('/api/products');
+      const data = await response.json();
+      setProducts(data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-xl text-gray-600">Loading...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
-  const handleGoBack = () => {
-    navigate(-1);
+  if (!product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl text-gray-600">Product not found</p>
+      </div>
+    );
+  }
+
+  // Map API product to match expected format
+  const formattedProduct = {
+    ...product,
+    imageUrl: product.image_url || '/placeholder.jpg',
+    badge: { text: 'New', color: 'sky' }
   };
 
   return (
@@ -185,17 +108,11 @@ const ProductDetailPage = () => {
             Kembali
           </button>
         </div>
-        <ProductInfo product={product} />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ProductFeatures product={product} />
-            <EducationalBenefits product={product} />
-          </div>
-        </div>
-        <ProductSpecifications product={product} />
+        <ProductInfo product={formattedProduct} />
+        <ProductSpecifications product={formattedProduct} />
 
-        <SimilarProducts
-          products={sampleProducts}
+        <RecommendationProduct
+          products={products}
           currentProductId={product.id}
           showAddButton={false}
         />

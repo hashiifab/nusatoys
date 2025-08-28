@@ -18,7 +18,9 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
   };
 
   const handleIncreaseQuantity = () => {
-    setQuantity(quantity + 1);
+    if (quantity < product.stock) {
+      setQuantity(quantity + 1);
+    }
   };
 
   const handleAddToCart = () => {
@@ -34,68 +36,51 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Product Image */}
-        <div className="relative">
-          <img
-            src={product.imageUrl}
+        {/* Product Images */}
+        <div className="space-y-4">
+          {/* Main Image */}
+          <div className="relative">
+            <img
+            src={product.image_url || '/placeholder.jpg'}
             alt={product.name}
-            className="w-full rounded-lg object-cover"
+            className="w-full rounded-lg object-cover aspect-square"
           />
-          {product.badge && (
-            <div
-              className={`absolute top-3 left-3 text-white text-xs font-semibold px-2 py-1 rounded bg-${product.badge.color}-500`}
-            >
-              {product.badge.text}
-            </div>
-          )}
+            {product.badge && (
+              <div
+                className={`absolute top-3 left-3 text-white text-xs font-semibold px-2 py-1 rounded bg-${product.badge.color}-500`}
+              >
+                {product.badge.text}
+              </div>
+            )}
+          </div>
+          
+
         </div>
 
         {/* Product Details */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <div className="text-sm text-gray-500 uppercase">
-              {product.category}
-            </div>
+  
             <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
           </div>
 
-          {/* Rating */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center">
-              {[...Array(5)].map((_, i) => (
-                <svg
-                  key={i}
-                  xmlns="http://www.w3.org/2000/svg"
-                  className={`w-5 h-5 ${i < Math.floor(product.rating) ? "text-yellow-400" : "text-gray-300"}`}
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118l-2.8-2.034c-.783-.57-.38-1.81.588-1.81h3.462a1 1 0 00.95-.69l1.07-3.292z" />
-                </svg>
-              ))}
-            </div>
-            <span className="text-gray-700 font-semibold">
-              {product.rating}
-            </span>
-            <span className="text-gray-500">
-              ({product.reviewCount} ulasan)
-            </span>
-          </div>
+
 
           {/* Price */}
           <div className="mt-2">
             <div className="text-2xl font-bold text-blue-700">
               Rp {product.price.toLocaleString()}
             </div>
-            {product.originalPrice && (
-              <div className="text-gray-500 line-through">
-                Rp {product.originalPrice.toLocaleString()}
-              </div>
-            )}
           </div>
 
           {/* Description */}
-          <div className="mt-4 text-gray-600">{product.description}</div>
+          <div className="prose prose-lg max-w-none">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Deskripsi:</h3>
+            <p className="text-gray-600 leading-relaxed">
+              {product.description}
+            </p>
+            
+          </div>
 
           {/* Quantity Selector */}
           <div className="mt-6 flex items-center">
@@ -117,7 +102,7 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
                 +
               </button>
             </div>
-            <div className="ml-4 text-gray-500">Stok: 20</div>
+            <div className="ml-4 text-gray-500">Stok: {product.stock}</div>
           </div>
 
           {/* Action Buttons */}

@@ -2,27 +2,22 @@
 export interface Product {
   id: string;
   name: string;
-  price: number;
-  originalPrice?: number;
   description: string;
-  rating: number;
-  reviewCount: number;
-  imageUrl: string;
-  category: string;
+  price: number;
+  stock: number;
+  image_url?: string;
+  specification: {
+    weight: string;
+    volume?: {
+      length: string;
+      width: string;
+      height: string;
+    };
+   };
   badge?: {
     text: string;
     color: string;
   };
-  features?: string[];
-  specifications?: {
-    age?: string;
-    experiments?: string;
-    safety?: string;
-    weight?: string;
-    certificate?: string;
-    language?: string;
-  };
-  educationalBenefits?: string[];
 }
 
 // Cart Types

@@ -5,17 +5,14 @@ interface ProductSpecificationsProps {
 }
 
 const ProductSpecifications = ({ product }: ProductSpecificationsProps) => {
-  const { specifications } = product;
+  const { specification } = product;
 
-  if (!specifications) return null;
+  if (!specification) return null;
 
   const specItems = [
-    { label: "Usia", value: specifications.age },
-    { label: "Eksperimen", value: specifications.experiments },
-    { label: "Keamanan", value: specifications.safety },
-    { label: "Berat", value: specifications.weight },
-    { label: "Sertifikat", value: specifications.certificate },
-    { label: "Panduan", value: specifications.language },
+    { label: "Berat", value: specification.weight },
+    { label: "Volume", value: specification.volume ? `${specification.volume.length} x ${specification.volume.width} x ${specification.volume.height} cm` : undefined },
+    
   ].filter((item) => item.value); // Filter out undefined values
 
   return (
