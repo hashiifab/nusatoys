@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { Plus, Edit, Trash2, Package } from 'lucide-react';
 
 interface Product {
@@ -47,11 +48,12 @@ const AdminProductTable: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch('https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/products-get-all');
       const data = await response.json();
       setProducts(data);
     } catch (error) {
       console.error('Error fetching products:', error);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -61,33 +63,121 @@ const AdminProductTable: React.FC = () => {
     e.preventDefault();
     
     try {
-      const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
-      const method = editingProduct ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
+      if (editingProduct) {
+          // Update existing product - use n8n webhook
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        
+        const updateUrl = `https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/7cc8a841-0d40-44ca-9001-59da26b5bb0c/products-update/${editingProduct.id}`;
+        console.log('Updating product:', updateUrl, 'with data:', formData);
+        
+        const response = await fetch(updateUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify(formData)
+        });
 
-      if (response.ok) {
-        fetchProducts();
-        setShowModal(false);
-        setEditingProduct(null);
-        resetForm();
+        if (response.ok) {
+          fetchProducts();
+          setShowModal(false);
+          setEditingProduct(null);
+          resetForm();
+        } else if (response.status === 401) {
+          alert('Session expired. Please login again.');
+        } else if (response.status === 403) {
+          alert('Admin access required.');
+        } else {
+          console.error('HTTP Error:', response.status, response.statusText);
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          alert(`Error: ${response.status} ${response.statusText}`);
+        }
+      } else {
+          // Create new product - use n8n webhook
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        
+        const response = await fetch('https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/products-create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify(formData)
+        });
+
+        if (response.ok) {
+          fetchProducts();
+          setShowModal(false);
+          setEditingProduct(null);
+          resetForm();
+        } else {
+          console.error('HTTP Error:', response.status, response.statusText);
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          alert(`Error: ${response.status} ${response.statusText}`);
+        }
       }
     } catch (error) {
       console.error('Error saving product:', error);
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.error('Network error - possible CORS issue or server unreachable');
+        console.error('Please check:');
+        console.error('1. Internet connection');
+        console.error('2. Server URL accessibility: https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/');
+        console.error('3. Browser CORS settings');
+        console.error('4. Server CORS configuration');
+        alert('Network error: Unable to connect to the server. Please check your internet connection or contact support.');
+      } else {
+        alert('Error saving product. Please try again.');
+      }
     }
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        await fetch(`/api/products/${id}`, { method: 'DELETE' });
-        fetchProducts();
+        // Get auth token from Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        
+        const deleteUrl = `https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/products-delete-webhook/products-delete/${id}`;
+        console.log('Deleting product:', deleteUrl);
+        
+        const response = await fetch(deleteUrl, { 
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          }
+        });
+        
+        if (response.ok) {
+          fetchProducts();
+        } else if (response.status === 401) {
+          alert('Session expired. Please login again.');
+        } else if (response.status === 403) {
+          alert('Admin access required.');
+        } else {
+          console.error('HTTP Error:', response.status, response.statusText);
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          alert(`Error: ${response.status} ${response.statusText}`);
+        }
       } catch (error) {
         console.error('Error deleting product:', error);
+        if (error instanceof TypeError && error.message === 'Failed to fetch') {
+          console.error('Network error - possible CORS issue or server unreachable');
+          alert('Network error: Unable to connect to the server. Please check your internet connection or contact support.');
+        } else {
+          alert('Error deleting product. Please try again.');
+        }
       }
     }
   };
@@ -229,174 +319,189 @@ const AdminProductTable: React.FC = () => {
       </div>
 
       {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              {editingProduct ? 'Edit Product' : 'Add New Product'}
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
+{showModal && (
+  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-xl p-6 sm:p-8 w-full max-w-lg sm:max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl">
+      <h3 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-6">
+        {editingProduct ? 'Edit Product' : 'Add New Product'}
+      </h3>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+          <input
+            type="text"
+            required
+            value={formData.name || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+            placeholder="Enter product name"
+          />
+        </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Description</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
+        {/* Description */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+          <textarea
+            required
+            rows={4}
+            value={formData.description || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+            className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+            placeholder="Enter product description"
+          />
+        </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Price (IDR)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.price || 0}
-                    onChange={(e) => setFormData(prev => ({ ...prev, price: parseInt(e.target.value) }))}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Stock</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.stock || 0}
-                    onChange={(e) => setFormData(prev => ({ ...prev, stock: parseInt(e.target.value) }))}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Weight</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., 1.5 kg"
-                  value={formData.specification?.weight || ''}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    specification: { ...prev.specification!, weight: e.target.value }
-                  }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Volume Dimensions</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-xs text-gray-600">Length (cm)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., 25"
-                      value={formData.specification?.volume?.length || ''}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        specification: {
-                          ...prev.specification!,
-                          volume: {
-                            length: e.target.value,
-                            width: prev.specification?.volume?.width || '',
-                            height: prev.specification?.volume?.height || ''
-                          }
-                        }
-                      }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600">Width (cm)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., 15"
-                      value={formData.specification?.volume?.width || ''}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        specification: {
-                          ...prev.specification!,
-                          volume: {
-                            width: e.target.value,
-                            length: prev.specification?.volume?.length || '',
-                            height: prev.specification?.volume?.height || ''
-                          }
-                        }
-                      }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600">Height (cm)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., 10"
-                      value={formData.specification?.volume?.height || ''}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        specification: {
-                          ...prev.specification!,
-                          volume: {
-                            height: e.target.value,
-                            length: prev.specification?.volume?.length || '',
-                            width: prev.specification?.volume?.width || ''
-                          }
-                        }
-                      }))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Image URL</label>
-                <input
-                  type="text"
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.image_url || ''}
-                  onChange={(e) => {
-                    setFormData(prev => ({ ...prev, image_url: e.target.value }));
-                  }}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-                >
-                  {editingProduct ? 'Update' : 'Create'}
-                </button>
-              </div>
-            </form>
+        {/* Price and Stock */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Price</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 text-sm">Rp</span>
+              <input
+                type="number"
+                required
+                min="0"
+                value={formData.price || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
+                onFocus={(e) => e.target.value === '0' && (e.target.value = '')}
+                onBlur={(e) => e.target.value === '' && setFormData(prev => ({ ...prev, price: 0 }))}
+                className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+                placeholder="Enter price"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Stock</label>
+            <input
+              type="number"
+              required
+              min="0"
+              value={formData.stock || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, stock: parseInt(e.target.value) || 0 }))}
+              onFocus={(e) => e.target.value === '0' && (e.target.value = '')}
+              onBlur={(e) => e.target.value === '' && setFormData(prev => ({ ...prev, stock: 0 }))}
+              className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+              placeholder="Enter stock quantity"
+            />
           </div>
         </div>
-      )}
+
+        {/* Weight */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight (kg)</label>
+          <input
+            type="text"
+            required
+            value={formData.specification?.weight || ''}
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
+              specification: { ...prev.specification!, weight: e.target.value }
+            }))}
+            className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+            placeholder="Enter weight (e.g., 1.5)"
+          />
+        </div>
+
+        {/* Volume Dimensions */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Volume Dimensions (cm)</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Length</label>
+              <input
+                type="text"
+                value={formData.specification?.volume?.length || ''}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  specification: {
+                    ...prev.specification!,
+                    volume: {
+                      length: e.target.value,
+                      width: prev.specification?.volume?.width || '',
+                      height: prev.specification?.volume?.height || ''
+                    }
+                  }
+                }))}
+                className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+                placeholder="e.g., 25"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Width</label>
+              <input
+                type="text"
+                value={formData.specification?.volume?.width || ''}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  specification: {
+                    ...prev.specification!,
+                    volume: {
+                      width: e.target.value,
+                      length: prev.specification?.volume?.length || '',
+                      height: prev.specification?.volume?.height || ''
+                    }
+                  }
+                }))}
+                className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+                placeholder="e.g., 15"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Height</label>
+              <input
+                type="text"
+                value={formData.specification?.volume?.height || ''}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  specification: {
+                    ...prev.specification!,
+                    volume: {
+                      height: e.target.value,
+                      length: prev.specification?.volume?.length || '',
+                      width: prev.specification?.volume?.width || ''
+                    }
+                  }
+                }))}
+                className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+                placeholder="e.g., 10"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Image URL */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Image URL</label>
+          <input
+            type="text"
+            value={formData.image_url || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, image_url: e.target.value }))}
+            className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+            placeholder="https://example.com/image.jpg"
+          />
+        </div>
+
+        {/* Buttons */}
+        <div className="flex justify-end space-x-3 pt-4">
+          <button
+            type="button"
+            onClick={() => setShowModal(false)}
+            className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            {editingProduct ? 'Update' : 'Create'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
     </div>
   );
 };

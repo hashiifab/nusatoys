@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL || 'https://swaxfxjsbqgrjlgdnabl.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3YXhmeGpzYnFncmpsZ2RuYWJsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjI3OTEyNiwiZXhwIjoyMDcxODU1MTI2fQ.d1C9Ax9shdvoFuvVttBeRkohdjhBuMsyuabsjxMYPGA';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables');
@@ -35,7 +35,44 @@ const productSchema = z.object({
 
 const app = new Hono();
 
-// Get all products
+// Admin authentication middleware
+const adminAuthMiddleware = async (c: any, next: any) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'Authorization header required' }, 401);
+    }
+
+    const token = authHeader.substring(7);
+    
+    // Verify JWT token with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+
+    // Check if user has admin role
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('user_role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.user_role !== 'admin') {
+      return c.json({ error: 'Admin access required' }, 403);
+    }
+
+    // Add user info to context
+    c.set('user', user);
+    await next();
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return c.json({ error: 'Authentication failed' }, 401);
+  }
+};
+
+// Get all products (public)
 app.get('/', async (c) => {
   try {
     const { data: products, error } = await supabase
@@ -97,8 +134,8 @@ app.get('/:id', async (c) => {
   }
 });
 
-// Create new product
-app.post('/', async (c) => {
+// Create new product (admin only)
+app.post('/', adminAuthMiddleware, async (c) => {
   try {
     const body = await c.req.json();
     const validatedData = productSchema.parse(body);
@@ -133,8 +170,8 @@ app.post('/', async (c) => {
   }
 });
 
-// Update product
-app.put('/:id', async (c) => {
+// Update product (admin only)
+app.put('/:id', adminAuthMiddleware, async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
@@ -173,8 +210,8 @@ app.put('/:id', async (c) => {
   }
 });
 
-// Delete product
-app.delete('/:id', async (c) => {
+// Delete product (admin only)
+app.delete('/:id', adminAuthMiddleware, async (c) => {
   try {
     const id = c.req.param('id');
 

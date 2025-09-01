@@ -29,12 +29,14 @@ if (topRef.current) {
 
   const fetchProduct = async () => {
     try {
-      // Menggunakan path relatif untuk API
-      const response = await fetch(`/api/products/${productSlug}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProduct(data);
-        document.title = `${data.name} | NusaToys`;
+      // Fetch all products and find the one matching the slug
+      const response = await fetch('https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/products-get-all');
+      const products = await response.json();
+      const foundProduct = products.find((p: Product) => p.name.toLowerCase().replace(/\s+/g, '-') === productSlug);
+      
+      if (foundProduct) {
+        setProduct(foundProduct);
+        document.title = `${foundProduct.name} | NusaToys`;
       } else {
         console.error('Product not found');
         navigate('/404');
@@ -48,7 +50,7 @@ if (topRef.current) {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch('https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/products-get-all');
       const data = await response.json();
       setProducts(data);
     } catch (error) {

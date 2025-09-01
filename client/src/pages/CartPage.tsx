@@ -64,7 +64,7 @@ const CartPage = () => {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch('https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/products-get-all');
       const data = await response.json();
       setProducts(data);
     } catch (error) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Eye, DollarSign, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface ShippingAddress {
   name: string;
@@ -39,11 +40,28 @@ const AdminPaymentTable: React.FC<AdminPaymentTableProps> = ({ showOnlyPaid = fa
 
   const fetchPayments = useCallback(async () => {
     try {
-      // Menggunakan path relatif untuk API
-      const url = showOnlyPaid ? `/api/xendit/payments/orders` : `/api/xendit/payments`;
-      const response = await fetch(url);
-      const data = await response.json();
-      setPayments(Array.isArray(data) ? data : []);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      const endpoint = showOnlyPaid ? 'https://n8n-30p2qy5nhmfl.stroberi.sumopod.my.id/webhook/payments-orders' : '';
+      const response = await fetch(endpoint, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPayments(Array.isArray(data) ? data : []);
+      } else if (response.status === 401) {
+        alert('Session expired. Please login again.');
+        setPayments([]);
+      } else if (response.status === 403) {
+        alert('Admin access required.');
+        setPayments([]);
+      } else {
+        setPayments([]);
+      }
     } catch (error) {
       console.error('Error fetching payments:', error);
       setPayments([]);

@@ -5,8 +5,8 @@ import { createClient } from '@supabase/supabase-js';
 const app = new Hono();
 
 // Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL || 'https://swaxfxjsbqgrjlgdnabl.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3YXhmeGpzYnFncmpsZ2RuYWJsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjI3OTEyNiwiZXhwIjoyMDcxODU1MTI2fQ.d1C9Ax9shdvoFuvVttBeRkohdjhBuMsyuabsjxMYPGA';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables');
@@ -22,6 +22,43 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 const xenditInvoice = new XenditInvoiceClient({
   secretKey: process.env.XENDIT_SECRET_KEY || "",
 });
+
+// Admin authentication middleware
+const adminAuthMiddleware = async (c: any, next: any) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'Authorization header required' }, 401);
+    }
+
+    const token = authHeader.substring(7);
+    
+    // Verify JWT token with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+
+    // Check if user has admin role
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('user_role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.user_role !== 'admin') {
+      return c.json({ error: 'Admin access required' }, 403);
+    }
+
+    // Add user info to context
+    c.set('user', user);
+    await next();
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return c.json({ error: 'Authentication failed' }, 401);
+  }
+};
 
 // Generate sequential invoice ID
 async function makeInvoiceId(): Promise<string> {
@@ -179,8 +216,8 @@ interface Payment {
 
 
 
-// Get all payments
-app.get('/payments', async (c) => {
+// Get all payments (admin only)
+app.get('/payments', adminAuthMiddleware, async (c) => {
   try {
     const status = c.req.query('status');
     
@@ -205,7 +242,7 @@ app.get('/payments', async (c) => {
 });
 
 // Get all orders (filtered PAID payments)
-app.get('/payments/orders', async (c) => {
+app.get('/payments/orders', adminAuthMiddleware, async (c) => {
   try {
     const { data: orders, error } = await supabase
       .from('payments')
@@ -247,25 +284,6 @@ app.get('/payments/:id', async (c) => {
   }
 });
 
-// Get orders (PAID payments)
-app.get('/payments/orders', async (c) => {
-  try {
-    const { data: orders, error } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('status', 'paid')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching orders:', error);
-      return c.json({ error: error.message }, 500);
-    }
-    
-    return c.json(orders || []);
-  } catch (error) {
-    console.error('Unexpected error:', error);
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
+
 
 export default app;

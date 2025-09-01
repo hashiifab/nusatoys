@@ -11,9 +11,7 @@
     // Path resolution
     "baseUrl": "./",
     "paths": {
-      "@server/*": ["./server/src/*"],
-      "@client/*": ["./client/src/*"],
-      "@shared/*": ["./shared/src/*"]
+      "@client/*": ["./client/src/*"]
     },
 
     // Module resolution
@@ -42,8 +40,6 @@
     "**/dist/**",
     "**/build/**",
     "client/dist/**",
-    "server/dist/**",
-    "shared/dist/**",
     "**/*.config.js",
     "**/*.config.ts"
   ]

@@ -11,8 +11,8 @@ export const app = new Hono()
 // Enable CORS for client requests (optional for single origin deployment)
 // Keep for development flexibility
 app.use('/*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://safety-nusatoys.rl5j77.easypanel.host', '*'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://safety-nusatoys.rl5j77.easypanel.host', '*', ],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', '*'],
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
   exposeHeaders: ['Content-Length', 'Content-Type']

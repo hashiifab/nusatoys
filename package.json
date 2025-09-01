@@ -7,26 +7,14 @@
   "homepage": "https://github.com/stevedylandev/bhvr",
   "packageManager": "bun@1.2.4",
   "workspaces": [
-    "./server",
-    "./client",
-    "./shared"
+    "./client"
   ],
   "scripts": {
     "dev": "turbo dev",
-    "dev:client": "turbo dev --filter=client",
-    "dev:server": "turbo dev --filter=server",
     "build": "turbo build",
-    "build:client": "turbo build --filter=client",
-    "build:server": "turbo build --filter=server",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
-    "test": "turbo test",
-    "postinstall": "turbo build --filter=shared --filter=server",
-    "seed:admin": "bun run create-admin.js",
-    "seed": "bun run seed-database.js",
-    "build:single": "bun run build && bun run copy:static && bun run build:server",
-    "copy:static": "rm -rf server/static && cp -r client/dist server/static",
-    "start:single": "cd server && bun run dist/index.js"
+    "test": "turbo test"
   },
   "keywords": [
     "bun",
